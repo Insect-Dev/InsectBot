@@ -1,5 +1,5 @@
-import { PermissionFlagsBits, SlashCommandBuilder } from "discord.js";
-import type { Command } from "./types/Command";
+import { PermissionFlagsBits, SlashCommandBuilder } from "discord.js"
+import type { Command } from "./types/Command"
 
 // { [key: string]: Command }
 
@@ -9,7 +9,7 @@ export const commands: Command[] = [
       .setName("ping")
       .setDescription("Ping pong!"),
     execute: async (interaction) => {
-      await interaction.reply({ content: "Pong!", ephemeral: true });
+      await interaction.reply({ content: "Pong!", ephemeral: true })
     },
   },
   {
@@ -20,8 +20,8 @@ export const commands: Command[] = [
       await interaction.reply(
         Math.random() > 0.5
           ? "Hello, World!"
-          : `Hello, <@${interaction.user.id}>!`
-      );
+          : `Hello, <@${interaction.user.id}>!`,
+      )
     },
   },
   {
@@ -29,7 +29,7 @@ export const commands: Command[] = [
       .setName("tests")
       .setDescription("Manage game tests")
       .addSubcommand((subcommand) =>
-        subcommand.setName("list").setDescription("List all active tests")
+        subcommand.setName("list").setDescription("List all active tests"),
       )
       .addSubcommand((subcommand) =>
         subcommand
@@ -39,8 +39,8 @@ export const commands: Command[] = [
             option
               .setName("test_name")
               .setDescription("The name of the test to start")
-              .setRequired(true)
-          )
+              .setRequired(true),
+          ),
       )
       .addSubcommand((subcommand) =>
         subcommand
@@ -50,21 +50,24 @@ export const commands: Command[] = [
             option
               .setName("test_name")
               .setDescription("The name of the test to end")
-              .setRequired(true)
-          )
-      ).setDefaultMemberPermissions(PermissionFlagsBits.Administrator | PermissionFlagsBits.ModerateMembers),
+              .setRequired(true),
+          ),
+      )
+      .setDefaultMemberPermissions(
+        PermissionFlagsBits.Administrator | PermissionFlagsBits.ModerateMembers,
+      ),
     execute: async (interaction) => {
-      const subcommand = interaction.options.getSubcommand();
+      const subcommand = interaction.options.getSubcommand()
 
       if (subcommand === "list") {
-        await interaction.reply("Here are the active tests: ...");
+        await interaction.reply("Here are the active tests: ...")
       } else if (subcommand === "start") {
-        const testName = interaction.options.getString("test_name");
-        await interaction.reply(`Test "${testName}" has been started!`);
+        const testName = interaction.options.getString("test_name")
+        await interaction.reply(`Test "${testName}" has been started!`)
       } else if (subcommand === "end") {
-        const testName = interaction.options.getString("test_name");
-        await interaction.reply(`Test "${testName}" has been ended.`);
+        const testName = interaction.options.getString("test_name")
+        await interaction.reply(`Test "${testName}" has been ended.`)
       }
     },
   },
-];
+]
