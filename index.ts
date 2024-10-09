@@ -1,6 +1,6 @@
 import { Events } from "discord.js"
-import { createClient, getClient } from "./bot"
-import { commands } from "./commands"
+import { createClient, getClient } from "./app/bot"
+import { commands } from "./app/commands"
 
 createClient()
 

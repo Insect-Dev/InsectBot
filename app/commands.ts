@@ -1,7 +1,6 @@
 import { PermissionFlagsBits, SlashCommandBuilder } from "discord.js"
-import type { Command } from "./types/Command"
-
-// { [key: string]: Command }
+import type { Command } from "../types/Command"
+import { addTest, endTest, prisma } from "./db"
 
 export const commands: Command[] = [
   {
@@ -37,7 +36,7 @@ export const commands: Command[] = [
           .setDescription("Start a new test")
           .addStringOption((option) =>
             option
-              .setName("test_name")
+              .setName("name")
               .setDescription("The name of the test to start")
               .setRequired(true),
           ),
@@ -48,8 +47,9 @@ export const commands: Command[] = [
           .setDescription("End an active test")
           .addStringOption((option) =>
             option
-              .setName("test_name")
+              .setName("name")
               .setDescription("The name of the test to end")
+              // .setAutocomplete(true)
               .setRequired(true),
           ),
       )
@@ -60,13 +60,51 @@ export const commands: Command[] = [
       const subcommand = interaction.options.getSubcommand()
 
       if (subcommand === "list") {
-        await interaction.reply("Here are the active tests: ...")
+        const tests = await prisma.test.findMany()
+
+        if (tests.length === 0) {
+          await interaction.reply("No tests found.")
+          return
+        }
+
+        await interaction.reply(
+          `Here are the tests:\n\n${tests.map((test) => test.name).join("\n")}`,
+        )
       } else if (subcommand === "start") {
-        const testName = interaction.options.getString("test_name")
-        await interaction.reply(`Test "${testName}" has been started!`)
+        const testName = interaction.options.getString("name")
+
+        try {
+          await addTest(testName!)
+          await interaction.reply(`Test "${testName}" has been started!`)
+        } catch (error: any) {
+          await interaction.reply({
+            content: `Failed to start the test "${testName}": \n\`\`\`\n${error.message}\n\`\`\``,
+            ephemeral: true,
+          })
+        }
       } else if (subcommand === "end") {
-        const testName = interaction.options.getString("test_name")
-        await interaction.reply(`Test "${testName}" has been ended.`)
+        const testName = interaction.options.getString("name")
+
+        try {
+          const test = await prisma.test.findFirst({
+            where: { name: testName!, status: "running" },
+          })
+
+          if (!test) {
+            await interaction.reply(
+              `Test "${testName}" not found or is not currently running.`,
+            )
+            return
+          }
+
+          await endTest(test.id)
+          await interaction.reply(`Test "${testName}" has been ended.`)
+        } catch (error: any) {
+          await interaction.reply({
+            content: `Failed to end the test "${testName}": \n\`\`\`\n${error.message}\n\`\`\``,
+            ephemeral: true,
+          })
+        }
       }
     },
   },

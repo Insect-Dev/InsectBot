@@ -1,5 +1,5 @@
 import { REST, Routes } from "discord.js"
-import { commands } from "../commands"
+import { commands } from "../app/commands"
 import { env } from "bun"
 
 if (!env.TOKEN) throw new Error("No env.TOKEN!")
