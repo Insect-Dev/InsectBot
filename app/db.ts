@@ -3,7 +3,7 @@ import {
   type Participant,
   type TestParticipant,
 } from "@prisma/client"
-import { TestStatus } from "../prisma/TestStatus"
+import { TestStatus } from "../types/TestStatus"
 
 export const prisma = new PrismaClient()
 
