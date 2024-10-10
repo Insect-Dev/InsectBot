@@ -2,6 +2,7 @@ import {
   AutocompleteInteraction,
   ChannelType,
   ChatInputCommandInteraction,
+  EmbedBuilder,
   PermissionFlagsBits,
   SlashCommandBuilder,
 } from "discord.js"
@@ -111,16 +112,22 @@ export const autocomplete = async (interaction: AutocompleteInteraction) => {
 }
 
 async function list(interaction: ChatInputCommandInteraction) {
-  const tests = await prisma.test.findMany()
+  const tests = await prisma.test.findMany({
+    take: 25,
+  })
 
-  if (tests.length === 0) {
-    await interaction.reply("No tests found.")
-    return
-  }
+  const embed = new EmbedBuilder()
+    .setColor("#88d4dd")
+    .setTitle("List of Tests")
+    .addFields(
+      tests.map((test) => ({ name: test.id, value: test.name, inline: true })),
+    )
+    .setTimestamp()
+    .setFooter({
+      text: `Page 1/${Math.ceil(tests.length / 25)}`,
+    })
 
-  await interaction.reply(
-    `Here are the tests:\n- ${tests.map((test) => test.name).join("\n")}`,
-  )
+  interaction.reply({ embeds: [embed] })
 }
 
 async function create(interaction: ChatInputCommandInteraction) {
