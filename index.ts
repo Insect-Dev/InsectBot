@@ -35,28 +35,6 @@ getClient().on(Events.InteractionCreate, async (interaction) => {
     }
   }
 
-  if (interaction.isModalSubmit()) {
-    if (interaction.customId === "itemCreate") {
-      const name = interaction.fields.getTextInputValue("name")
-
-      try {
-        addTest(name)
-
-        await interaction.reply({
-          content: `Created test "${name}"`,
-          ephemeral: true,
-        })
-      } catch (error) {
-        console.error(error)
-
-        await interaction.reply({
-          content: "There was an error while executing this command!",
-          ephemeral: true,
-        })
-      }
-    }
-  }
-
   if (interaction.isAutocomplete()) {
     const command = commands.find(
       (command) => command.data.name === interaction.commandName,

@@ -1,16 +1,11 @@
 import {
-  ActionRowBuilder,
   AutocompleteInteraction,
   ChannelType,
   ChatInputCommandInteraction,
-  ModalBuilder,
   PermissionFlagsBits,
   SlashCommandBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  type ModalActionRowComponentBuilder,
 } from "discord.js"
-import { endTest, getActiveTests, prisma } from "../db"
+import { addTest, endTest, getActiveTests, prisma } from "../db"
 
 export const getData = async () => {
   return new SlashCommandBuilder()
@@ -20,7 +15,23 @@ export const getData = async () => {
       subcommand.setName("list").setDescription("List all active tests"),
     )
     .addSubcommand((subcommand) =>
-      subcommand.setName("create").setDescription("Create a new test"),
+      subcommand
+        .setName("create")
+        .setDescription("Create a new test")
+        .addStringOption((option) =>
+          option
+            .setName("name")
+            .setDescription("The name of the test to create")
+            .setRequired(true),
+        )
+        .addStringOption((option) =>
+          option
+            .setName("start")
+            .setDescription(
+              "The start date of the test to create (in any format acceptable by the JS Date object)",
+            )
+            .setAutocomplete(true),
+        ),
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -56,9 +67,7 @@ export const getData = async () => {
             .setRequired(true),
         )
         .addStringOption((option) =>
-          option
-            .setName("message")
-            .setDescription("Message to send to the participants"),
+          option.setName("message").setDescription("Message to be attached"),
         ),
     )
     .setDefaultMemberPermissions(
@@ -67,15 +76,38 @@ export const getData = async () => {
 }
 
 export const autocomplete = async (interaction: AutocompleteInteraction) => {
-  const focusedValue = interaction.options.getFocused()
-  const choices = (await getActiveTests()).map((test) => test.name)
-  const filtered = choices.filter((choice) =>
-    choice.toLowerCase().startsWith(focusedValue.toLowerCase()),
-  )
+  const { value: focusedValue, name } = interaction.options.getFocused(true)
 
-  await interaction.respond(
-    filtered.map((choice) => ({ name: choice, value: choice })),
-  )
+  if (name === "name") {
+    const choices = (await getActiveTests()).map((test) => test.name)
+    const filtered = choices.filter((choice) =>
+      choice.toLowerCase().startsWith(focusedValue.toLowerCase()),
+    )
+
+    await interaction.respond(
+      filtered.map((choice) => ({ name: choice, value: choice })),
+    )
+  } else if (name === "start") {
+    const locale = (date: number) => new Date(date).toLocaleString()
+
+    const currentDate = Date.now()
+
+    const futureDates = Array.from(
+      { length: 7 },
+      (_, index) => currentDate + (index + 1) * 24 * 60 * 60 * 1000,
+    ).map((date, index) => ({
+      name: `+${index + 1} days (${locale(date)})`,
+      value: locale(date),
+    }))
+
+    await interaction.respond([
+      {
+        name: `Now (${locale(currentDate)})`,
+        value: "now",
+      },
+      ...futureDates,
+    ])
+  }
 }
 
 async function list(interaction: ChatInputCommandInteraction) {
@@ -92,29 +124,33 @@ async function list(interaction: ChatInputCommandInteraction) {
 }
 
 async function create(interaction: ChatInputCommandInteraction) {
+  const name = interaction.options.getString("name", true)
+  const startDate = interaction.options.getString("start")
+
   try {
-    const modal = new ModalBuilder()
-      .setCustomId("itemCreate")
-      .setTitle(`Create a Test`)
+    if (!startDate || startDate === "now") {
+      await addTest(name)
 
-    const nameInput = new TextInputBuilder()
-      .setCustomId("name")
-      .setLabel("Test name")
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
+      await interaction.reply(`Test "${name}" has been created and activated.`)
+    } else {
+      const startDateValue = new Date(startDate)
 
-    const actionRows: ActionRowBuilder<ModalActionRowComponentBuilder>[] = [
-      new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(
-        nameInput,
-      ),
-    ]
+      if (isNaN(startDateValue.getTime())) {
+        await interaction.reply({
+          content: "Invalid start date format.",
+          ephemeral: true,
+        })
+        return
+      }
+      await addTest(name, new Date(startDate))
 
-    modal.addComponents(...actionRows)
-
-    await interaction.showModal(modal)
+      await interaction.reply(
+        `Test "${name}" has been created and scheduled for ${new Date(startDate).toLocaleString()}.`,
+      )
+    }
   } catch (error: any) {
     await interaction.reply({
-      content: `Failed to create the test: \n\`\`\`\n${error.message}\n\`\`\``,
+      content: `Failed to create the test: \n${"```"}\n${error.message}\n${"```"}`,
       ephemeral: true,
     })
   }
@@ -139,7 +175,7 @@ async function end(interaction: ChatInputCommandInteraction) {
     await interaction.reply(`Test "${testName}" has been ended.`)
   } catch (error: any) {
     await interaction.reply({
-      content: `Failed to end the test "${testName}": \n\`\`\`\n${error.message}\n\`\`\``,
+      content: `Failed to end the test "${testName}": \n${"```"}\n${error.message}\n${"```"}`,
       ephemeral: true,
     })
   }
