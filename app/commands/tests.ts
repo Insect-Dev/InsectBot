@@ -1,19 +1,39 @@
 import {
+  ActionRowBuilder,
   AutocompleteInteraction,
+  ButtonBuilder,
+  ButtonStyle,
   ChannelType,
   ChatInputCommandInteraction,
+  ComponentType,
   EmbedBuilder,
   PermissionFlagsBits,
   SlashCommandBuilder,
+  type Interaction,
 } from "discord.js"
 import { addTest, endTest, getActiveTests, prisma } from "../db"
+import type { Prisma } from "@prisma/client"
 
 export const getData = async () => {
   return new SlashCommandBuilder()
     .setName("tests")
     .setDescription("Manage game tests")
     .addSubcommand((subcommand) =>
-      subcommand.setName("list").setDescription("List all active tests"),
+      subcommand
+        .setName("list")
+        .setDescription("List all active tests")
+        .addStringOption((option) =>
+          option
+            .setName("filter")
+            .setDescription("Filter for the state of tests")
+            .addChoices([
+              { name: "All", value: "ALL" },
+              { name: "Scheduled", value: "SCHEDULED" },
+              { name: "Running", value: "RUNNING" },
+              { name: "Finished", value: "FINISHED" },
+              { name: "Uncompleted", value: "UNCOMPLETED" },
+            ]),
+        ),
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -111,10 +131,29 @@ export const autocomplete = async (interaction: AutocompleteInteraction) => {
   }
 }
 
-async function list(interaction: ChatInputCommandInteraction) {
+export async function generateList(filterText: string, page: number) {
+  const filters: { [key: string]: Prisma.TestWhereInput | undefined } = {
+    ALL: {},
+    SCHEDULED: { status: "SCHEDULED" },
+    RUNNING: { status: "RUNNING" },
+    UNCOMPLETED: { status: { not: "FINISHED" } },
+    FINISHED: { status: "FINISHED" },
+    DEFAULT: undefined,
+  }
+
   const tests = await prisma.test.findMany({
     take: 25,
+    skip: (page - 1) * 25,
+    where: filters[filterText],
   })
+
+  const testCount = await prisma.test.count({
+    where: filters[filterText],
+  })
+
+  if (tests.length === 0) {
+    return
+  }
 
   const embed = new EmbedBuilder()
     .setColor("#88d4dd")
@@ -124,10 +163,45 @@ async function list(interaction: ChatInputCommandInteraction) {
     )
     .setTimestamp()
     .setFooter({
-      text: `Page 1/${Math.ceil(tests.length / 25)}`,
+      text: `Page ${page}/${Math.ceil(testCount / 25)}`,
     })
 
-  interaction.reply({ embeds: [embed] })
+  const pageButtons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`previousPage_${filterText}_${page}`)
+      .setLabel("Previous Page")
+      .setDisabled(page === 1)
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`nextPage_${filterText}_${page}`)
+      .setLabel("Next Page")
+      .setDisabled(page === Math.ceil(testCount / 25))
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`reload_${filterText}_${page}`)
+      .setLabel("Reload")
+      .setStyle(ButtonStyle.Secondary),
+  )
+
+  return { embed, pageButtons }
+}
+
+async function list(interaction: ChatInputCommandInteraction) {
+  const filterText = interaction.options.getString("filter") ?? "DEFAULT"
+
+  const { embed, pageButtons } = (await generateList(filterText, 1)) ?? {}
+
+  if (!(embed && pageButtons)) {
+    interaction.reply({
+      content: "No tests found matching the specified filter.",
+    })
+    return
+  }
+
+  await interaction.reply({
+    embeds: [embed],
+    components: [pageButtons],
+  })
 }
 
 async function create(interaction: ChatInputCommandInteraction) {
@@ -179,6 +253,7 @@ async function end(interaction: ChatInputCommandInteraction) {
     }
 
     await endTest(test.id)
+
     await interaction.reply(`Test "${testName}" has been ended.`)
   } catch (error: any) {
     await interaction.reply({
