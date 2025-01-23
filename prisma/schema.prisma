@@ -8,27 +8,65 @@ generator client {
 }
 
 model Test {
-  id           String            @id @default(uuid())
+  id           String          @id @default(uuid())
   name         String
+  description  String?
   status       String
-  startDate    DateTime          @default(now())
+  type         String? // Optional: type of test (bugfix, feature, etc.)
+  priority     Int? // Optional: priority level of the test (e.g., 1 = high, 5 = low)
+  startDate    DateTime        @default(now())
   endDate      DateTime?
-  participants TestParticipant[]
+  participants Participation[]
+  TestResult   TestResult[]
 }
 
-model TestParticipant {
-  testId        String
-  participantId String
-  score         Int
+model TestResult {
+  testId          String
+  feedbackSummary String?
+  bugCount        Int?
+  testedFeatures  String?
 
-  test        Test        @relation(fields: [testId], references: [id])
-  participant Participant @relation(fields: [participantId], references: [id])
+  test Test @relation(fields: [testId], references: [id])
 
-  @@id([testId, participantId]) // Composite key
+  @@id([testId])
 }
 
-model Participant {
-  id         String            @id @default(uuid())
-  totalScore Int               @default(0)
-  tests      TestParticipant[]
+model Participation {
+  userId       String
+  testId       String
+  score        Int // Score based on their performance or completion of tasks (if applicable)
+  bugsReported Int // Number of bugs they reported
+  feedback     String? // Individual feedback provided by the participant
+
+  test        Test @relation(fields: [testId], references: [id])
+  participant User @relation(fields: [userId], references: [id])
+
+  @@id([userId, testId]) // Composite key to prevent duplicates
+}
+
+model User {
+  id              String            @id @default(uuid())
+  username        String
+  totalScore      Int               @default(0) // Aggregated score across all tests
+  participation   Participation[]
+  UserAchievement UserAchievement[]
+}
+
+model AchievementType {
+  id              String            @id @default(uuid())
+  name            String // e.g., "Completed 5 tests", "Reported 10 bugs"
+  description     String?
+  points          Int
+  UserAchievement UserAchievement[]
+}
+
+model UserAchievement {
+  userId        String
+  achievementId String
+  dateAwarded   DateTime @default(now())
+
+  user        User            @relation(fields: [userId], references: [id])
+  achievement AchievementType @relation(fields: [achievementId], references: [id])
+
+  @@id([userId, achievementId]) // Composite key
 }
